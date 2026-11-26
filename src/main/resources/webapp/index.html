@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Legacy Order Demo</title>
+    <style>
+        :root {
+            --bg: #f4f6f9;
+            --card: #ffffff;
+            --text: #1f2937;
+            --muted: #6b7280;
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --border: #d1d5db;
+            --error-bg: #fef2f2;
+            --error-text: #b91c1c;
+            --success-bg: #f0fdf4;
+            --success-border: #bbf7d0;
+        }
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 16px;
+        }
+        .card {
+            background: var(--card);
+            border-radius: 10px;
+            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.08);
+            width: 100%;
+            max-width: 440px;
+            padding: 28px;
+        }
+        h1 {
+            margin: 0 0 6px;
+            font-size: 1.4rem;
+        }
+        .subtitle {
+            margin: 0 0 20px;
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+        .field {
+            margin-bottom: 16px;
+        }
+        label {
+            display: block;
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: 6px;
+        }
+        input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 1rem;
+        }
+        input:focus {
+            outline: 2px solid var(--primary);
+            border-color: transparent;
+        }
+        button {
+            width: 100%;
+            padding: 11px;
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        button:hover {
+            background: var(--primary-hover);
+        }
+        .error {
+            margin-top: 16px;
+            padding: 12px;
+            background: var(--error-bg);
+            color: var(--error-text);
+            border-radius: 6px;
+            font-size: 0.9rem;
+            display: none;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 16px;
+            background: var(--success-bg);
+            border: 1px solid var(--success-border);
+            border-radius: 6px;
+            display: none;
+        }
+        .row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 0.95rem;
+        }
+        .row.total {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid var(--success-border);
+            font-weight: 700;
+            font-size: 1.1rem;
+            margin-bottom: 0;
+        }
+    </style>
+</head>
+<body>
+<main class="card">
+    <h1>Order Calculator</h1>
+    <p class="subtitle">Java 8 + Embedded Jetty (<code>javax.servlet</code>)</p>
+
+    <form id="order-form">
+        <div class="field">
+            <label for="price">Product Price ($)</label>
+            <input id="price" name="price" type="number" step="0.01" min="0" value="25.00" required>
+        </div>
+        <div class="field">
+            <label for="quantity">Quantity</label>
+            <input id="quantity" name="quantity" type="number" step="1" min="0" value="2" required>
+        </div>
+        <div class="field">
+            <label for="discount">Discount (%)</label>
+            <input id="discount" name="discount" type="number" step="0.01" min="0" max="100" value="10">
+        </div>
+        <button type="submit">Calculate Total</button>
+    </form>
+
+    <div id="error-box" class="error" role="alert"></div>
+
+    <section id="result-box" class="result" aria-live="polite">
+        <div class="row">
+            <span>Subtotal</span>
+            <span id="subtotal-val">$0.00</span>
+        </div>
+        <div class="row">
+            <span>Discount</span>
+            <span id="discount-val">-$0.00</span>
+        </div>
+        <div class="row total">
+            <span>Total</span>
+            <span id="total-val">$0.00</span>
+        </div>
+    </section>
+</main>
+
+<script>
+    const form = document.getElementById("order-form");
+    const errorBox = document.getElementById("error-box");
+    const resultBox = document.getElementById("result-box");
+
+    function formatCurrency(value) {
+        return "$" + Number(value).toFixed(2);
+    }
+
+    form.addEventListener("submit", async function (event) {
+        event.preventDefault();
+        errorBox.style.display = "none";
+        resultBox.style.display = "none";
+
+        const payload = {
+            price: document.getElementById("price").value,
+            quantity: document.getElementById("quantity").value,
+            discount: document.getElementById("discount").value || "0"
+        };
+
+        try {
+            const response = await fetch("/api/orders/calculate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+            const data = await response.json();
+
+            if (!response.ok) {
+                errorBox.textContent = data.error || "Failed to calculate order total.";
+                errorBox.style.display = "block";
+                return;
+            }
+
+            document.getElementById("subtotal-val").textContent = formatCurrency(data.subtotal);
+            document.getElementById("discount-val").textContent = "-" + formatCurrency(data.discountAmount);
+            document.getElementById("total-val").textContent = formatCurrency(data.total);
+            resultBox.style.display = "block";
+        } catch (err) {
+            errorBox.textContent = "Unable to reach calculation service.";
+            errorBox.style.display = "block";
+        }
+    });
+</script>
+</body>
+</html>
